@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>STOCKFLOW</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+ 
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+ 
+    :root {
+      --white:     #ffffff;
+      --bg:        #f7f7f5;
+      --bg-hover:  #f0f0ee;
+      --text:      #111110;
+      --text2:     #6b6b68;
+      --text3:     #adadaa;
+      --border:    #e8e8e5;
+      --border2:   #d0d0cc;
+      --green:     #16a34a;
+      --red:       #dc2626;
+      --blue:      #1d4ed8;
+      --font:      'Plus Jakarta Sans', sans-serif;
+      --mono:      'JetBrains Mono', monospace;
+    }
+ 
+    html, body { height: 100%; }
+ 
+    body {
+      font-family: var(--font);
+      background: var(--white);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+ 
+    /* ─── Topbar ─── */
+    #topbar {
+      height: 56px;
+      padding: 0 28px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      background: rgba(255,255,255,0.88);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      position: relative;
+      z-index: 100;
+    }
+ 
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .logo-mark {
+      width: 28px;
+      height: 28px;
+      background: var(--text);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .logo-name {
+      font-size: 13.5px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: var(--text);
+    }
+ 
+    .topbar-badge {
+      font-size: 11.5px;
+      font-weight: 500;
+      color: var(--text2);
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      padding: 5px 13px;
+    }
+ 
+    /* ─── Messages ─── */
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 36px 0 12px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      z-index: 1;
+      scroll-behavior: smooth;
+    }
+    #messages::-webkit-scrollbar { width: 4px; }
+    #messages::-webkit-scrollbar-track { background: transparent; }
+    #messages::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+ 
+    .msg-row {
+      display: flex;
+      justify-content: center;
+      padding: 4px 24px;
+      animation: msgIn 0.3s cubic-bezier(0.22,1,0.36,1) both;
+    }
+    @keyframes msgIn {
+      from { opacity:0; transform: translateY(10px); }
+      to   { opacity:1; transform: translateY(0); }
+    }
+ 
+    .msg-inner {
+      width: 100%;
+      max-width: 700px;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .msg-row.user .msg-inner { flex-direction: row-reverse; }
+ 
+    .avatar {
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 4px;
+      letter-spacing: 0.04em;
+      font-family: var(--mono);
+    }
+    .avatar.ai   { background: var(--text); color: var(--white); }
+    .avatar.user { background: var(--bg-hover); border: 1px solid var(--border); color: var(--text2); }
+ 
+    .bubble {
+      max-width: calc(100% - 38px);
+      padding: 10px 0;
+      font-size: 14.5px;
+      line-height: 1.75;
+      color: var(--text);
+    }
+    .bubble.user {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      padding: 9px 16px;
+      border-radius: 18px 18px 4px 18px;
+      font-size: 14px;
+      max-width: 70%;
+    }
+ 
+    /* Markdown in AI bubble */
+    .bubble.ai h2 { font-size: 16px; font-weight: 700; margin: 24px 0 8px; letter-spacing: -0.01em; }
+    .bubble.ai h3 { font-size: 14px; font-weight: 600; margin: 16px 0 5px; color: var(--text2); }
+    .bubble.ai p  { margin: 7px 0; }
+    .bubble.ai ul, .bubble.ai ol { padding-left: 20px; margin: 7px 0; }
+    .bubble.ai li { margin: 4px 0; }
+    .bubble.ai strong { font-weight: 600; }
+    .bubble.ai hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+    .bubble.ai blockquote {
+      border-left: 2px solid var(--border2);
+      padding-left: 14px;
+      color: var(--text2);
+      margin: 10px 0;
+      font-style: italic;
+    }
+    .bubble.ai code {
+      font-family: var(--mono);
+      font-size: 12.5px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      padding: 1px 6px;
+      border-radius: 4px;
+    }
+    .bubble.ai table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      margin: 12px 0;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+    .bubble.ai th {
+      text-align: left;
+      font-weight: 600;
+      border-bottom: 1px solid var(--border);
+      padding: 9px 14px;
+      color: var(--text2);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      background: var(--bg);
+    }
+    .bubble.ai td {
+      padding: 9px 14px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13.5px;
+    }
+    .bubble.ai tr:last-child td { border-bottom: none; }
+ 
+    /* ─── Typing dots ─── */
+    .typing { display: flex; gap: 4px; align-items: center; padding: 10px 0; }
+    .dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: var(--border2);
+      animation: blink 1.3s ease-in-out infinite;
+    }
+    .dot:nth-child(2) { animation-delay: 0.16s; }
+    .dot:nth-child(3) { animation-delay: 0.32s; }
+    @keyframes blink {
+      0%,60%,100% { opacity:0.3; transform:scale(0.85); }
+      30%          { opacity:1;   transform:scale(1); }
+    }
+ 
+    /* ─── Welcome ─── */
+    #welcome {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 24px;
+      text-align: center;
+      animation: fadeIn 0.5s ease both;
+      position: relative;
+    }
+    @keyframes fadeIn { from{opacity:0;} to{opacity:1;} }
+ 
+    /* Sarvam-style subtle hero radial — very faint, like their hero-gradient.svg */
+    #welcome::before {
+      content: '';
+      position: absolute;
+      top: -60px; left: 50%;
+      transform: translateX(-50%);
+      width: 800px; height: 500px;
+      background: radial-gradient(ellipse at 50% 38%,
+        rgba(22,163,74,0.08) 0%,
+        rgba(99,102,241,0.05) 40%,
+        transparent 68%);
+      pointer-events: none;
+      z-index: 0;
+    }
+ 
+    .w-inner {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+ 
+    /* Pill label — Sarvam uses small uppercase labels above headlines */
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+      color: var(--text2);
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      padding: 5px 14px 5px 10px;
+      background: var(--white);
+      margin-bottom: 24px;
+    }
+    .eyebrow-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      flex-shrink: 0;
+      animation: pulse-dot 2.4s ease-in-out infinite;
+    }
+    @keyframes pulse-dot {
+      0%,100% { opacity:0.55; transform:scale(0.9); }
+      50%      { opacity:1;   transform:scale(1.15); }
+    }
+ 
+    #welcome h2 {
+      font-size: clamp(32px, 5.5vw, 52px);
+      font-weight: 700;
+      line-height: 1.08;
+      letter-spacing: -0.03em;
+      color: var(--text);
+      margin-bottom: 16px;
+    }
+ 
+    #welcome p {
+      font-size: 15.5px;
+      color: var(--text2);
+      max-width: 360px;
+      line-height: 1.65;
+      font-weight: 400;
+      margin-bottom: 44px;
+    }
+ 
+    .quick-label {
+      font-size: 10.5px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text3);
+      font-weight: 700;
+      width: 100%;
+      max-width: 420px;
+      text-align: left;
+      margin-bottom: 9px;
+    }
+    .quick-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 7px;
+      width: 100%;
+      max-width: 420px;
+    }
+    .qcard {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 13px 16px;
+      cursor: pointer;
+      text-align: left;
+      font-family: var(--font);
+      color: var(--text);
+      transition: border-color 0.18s, box-shadow 0.18s, transform 0.2s;
+    }
+    .qcard:hover {
+      border-color: var(--border2);
+      box-shadow: 0 3px 14px rgba(0,0,0,0.07);
+      transform: translateY(-1px);
+    }
+    .qcard b {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: var(--mono);
+      color: var(--text);
+      margin-bottom: 3px;
+      letter-spacing: 0.02em;
+    }
+    .qcard small { font-size: 12px; color: var(--text2); }
+ 
+    /* ─── Input area ─── */
+    #inputwrap {
+      flex-shrink: 0;
+      display: flex;
+      justify-content: center;
+      padding: 12px 24px 24px;
+      position: relative;
+      z-index: 10;
+      background: rgba(255,255,255,0.88);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+    #inputwrap::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: var(--border);
+    }
+ 
+    #inputcol {
+      width: 100%;
+      max-width: 700px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+ 
+    /* ─── Dropdown ─── */
+    #dropdown {
+      display: none;
+      position: absolute;
+      bottom: calc(100% + 8px);
+      left: 0; right: 0;
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      z-index: 1000;
+      box-shadow: 0 -6px 28px rgba(0,0,0,0.1), 0 0 0 1px rgba(0,0,0,0.03);
+      animation: dropUp 0.17s cubic-bezier(0.22,1,0.36,1) both;
+    }
+    @keyframes dropUp {
+      from { opacity:0; transform:translateY(6px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+    #dropdown.open { display: block; }
+ 
+    .suggestion {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 11px 18px;
+      cursor: pointer;
+      transition: background 0.1s;
+      gap: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .suggestion:last-child { border-bottom: none; }
+    .suggestion:hover, .suggestion.highlighted { background: var(--bg); }
+ 
+    .sug-left { display:flex; flex-direction:column; gap:2px; flex:1; min-width:0; }
+    .sug-name {
+      font-size: 13.5px; font-weight: 500;
+      color: var(--text);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .sug-name mark { background:none; color:var(--green); font-weight:700; }
+    .sug-sub { font-size: 11.5px; color: var(--text2); }
+ 
+    .sug-right { display:flex; flex-direction:column; align-items:flex-end; gap:3px; flex-shrink:0; }
+    .sug-ticker { font-size:12.5px; font-weight:500; font-family:var(--mono); color:var(--text); }
+    .sug-ticker mark { background:none; color:var(--green); font-weight:700; }
+ 
+    .badge { font-size:10px; padding:2px 7px; border-radius:4px; font-weight:600; }
+    .badge-in { background:#fff7ed; color:#c2410c; border:1px solid #fed7aa; }
+    .badge-us { background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; }
+ 
+    .sug-empty { padding:16px 18px; font-size:13px; color:var(--text2); text-align:center; }
+    .sug-label { padding:10px 18px 5px; font-size:10.5px; font-weight:700; color:var(--text3); text-transform:uppercase; letter-spacing:0.09em; }
+ 
+    /* ─── Input box ─── */
+    #inputbox {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      padding: 8px 8px 8px 22px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      box-shadow: 0 1px 5px rgba(0,0,0,0.055);
+    }
+    #inputbox:focus-within {
+      border-color: var(--border2);
+      box-shadow: 0 0 0 3px rgba(0,0,0,0.06), 0 2px 8px rgba(0,0,0,0.07);
+    }
+ 
+    #ticker {
+      flex: 1;
+      background: none; border: none; outline: none;
+      font-size: 14.5px; color: var(--text);
+      font-family: var(--font); font-weight: 400;
+    }
+    #ticker::placeholder { color: var(--text3); }
+ 
+    #search-spinner {
+      width: 15px; height: 15px;
+      border: 1.5px solid var(--border2);
+      border-top-color: var(--text2);
+      border-radius: 50%;
+      animation: spin 0.55s linear infinite;
+      display: none; flex-shrink: 0;
+    }
+    #search-spinner.active { display: block; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+ 
+    #sendbtn {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: var(--text);
+      border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: opacity 0.15s, transform 0.15s;
+    }
+    #sendbtn:hover    { opacity: 0.78; transform: scale(1.04); }
+    #sendbtn:disabled { opacity: 0.22; cursor: not-allowed; transform: none; }
+ 
+    #input-error {
+      font-size: 12px; color: var(--red);
+      padding: 5px 20px 0;
+      display: none; animation: fadeIn 0.2s ease;
+    }
+    #input-error.visible { display: block; }
+ 
+    .fetch-hint {
+      font-size: 12.5px; color: var(--text2);
+      font-family: var(--mono);
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 0;
+    }
+    .fetch-hint::before {
+      content: '';
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--green);
+      animation: blink 1.2s infinite;
+    }
+
+    /* ─── Verdict card ─── */
+    .verdict-card {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 18px 22px;
+      border-radius: 12px;
+      margin: 8px 0 20px;
+      border: 1px solid var(--border);
+      border-left-width: 4px;
+      background: var(--bg);
+    }
+    .verdict-label {
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text2);
+      margin-bottom: 4px;
+    }
+    .verdict-text {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+    .verdict-card.strong-buy  { border-left-color: #16a34a; }
+    .verdict-card.strong-buy  .verdict-text { color: #15803d; }
+    .verdict-card.buy         { border-left-color: #22c55e; }
+    .verdict-card.buy         .verdict-text { color: #16a34a; }
+    .verdict-card.hold        { border-left-color: #eab308; }
+    .verdict-card.hold        .verdict-text { color: #a16207; }
+    .verdict-card.sell        { border-left-color: #ef4444; }
+    .verdict-card.sell        .verdict-text { color: #dc2626; }
+    .verdict-card.strong-sell { border-left-color: #b91c1c; }
+    .verdict-card.strong-sell .verdict-text { color: #991b1b; }
+
+    body.dark .verdict-card.strong-buy  .verdict-text { color: #4ade80; }
+    body.dark .verdict-card.buy         .verdict-text { color: #86efac; }
+    body.dark .verdict-card.hold        .verdict-text { color: #fde047; }
+    body.dark .verdict-card.sell        .verdict-text { color: #f87171; }
+    body.dark .verdict-card.strong-sell .verdict-text { color: #fca5a5; }
+    .chart-wrap {
+      margin: 8px 0 16px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--white);
+      overflow: visible;
+      isolation: isolate;
+    }
+    .chart-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .chart-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text2);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+    }
+    .chart-change {
+      font-size: 12px;
+      font-weight: 600;
+      font-family: var(--mono);
+      padding: 2px 8px;
+      border-radius: 5px;
+    }
+    .chart-change.up   { color: var(--green); background: rgba(22,163,74,0.08); }
+    .chart-change.down { color: var(--red);   background: rgba(220,38,38,0.08); }
+    .chart-body {
+      height: 320px;
+      padding-bottom: 28px;
+    }</style>
+</head>
+<body>
+ 
+<div id="topbar">
+  <div class="logo">
+    <div class="logo-mark">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+        <path d="M2 10.5L5.5 6.5L8.5 9L12 3.5" stroke="white" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="12" cy="3.5" r="1.3" fill="white"/>
+      </svg>
+    </div>
+    <span class="logo-name">STOCKFLOW</span>
+  </div>
+  <span class="topbar-badge">AI Research</span>
+</div>
+ 
+<div id="messages">
+  <div id="welcome">
+    <div class="w-inner">
+      <div class="eyebrow">
+        <span class="eyebrow-dot"></span>
+        AI Investment Research
+      </div>
+      <h2>Research any stock,<br>in seconds.</h2>
+      <p>Get a comprehensive AI-generated investment memo for any listed company — instantly.</p>
+      <div class="quick-label">Quick search</div>
+      <div class="quick-grid">
+        <button class="qcard" onclick="selectQuick('AAPL','Apple Inc.','US')"><b>AAPL</b><small>Apple Inc.</small></button>
+        <button class="qcard" onclick="selectQuick('NVDA','NVIDIA Corporation','US')"><b>NVDA</b><small>Nvidia Corp.</small></button>
+        <button class="qcard" onclick="selectQuick('TSLA','Tesla, Inc.','US')"><b>TSLA</b><small>Tesla Inc.</small></button>
+        <button class="qcard" onclick="selectQuick('MSFT','Microsoft Corporation','US')"><b>MSFT</b><small>Microsoft</small></button>
+      </div>
+    </div>
+  </div>
+</div>
+ 
+<div id="inputwrap">
+  <div id="inputcol">
+    <div id="dropdown"></div>
+    <div id="inputbox">
+      <input
+        id="ticker"
+        type="text"
+        placeholder="Search by company name or ticker…"
+        maxlength="80"
+        autocomplete="off"
+        spellcheck="false"
+      />
+      <div id="search-spinner"></div>
+      <button id="sendbtn" onclick="send()" aria-label="Analyze">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M1.5 7h11M8 2l5 5-5 5" stroke="white" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+    </div>
+    <div id="input-error">Please select a stock from the suggestions.</div>
+  </div>
+</div>
+ 
+<script>
+const msgArea  = document.getElementById('messages');
+const input    = document.getElementById('ticker');
+const btn      = document.getElementById('sendbtn');
+const dropdown = document.getElementById('dropdown');
+const spinner  = document.getElementById('search-spinner');
+const errMsg   = document.getElementById('input-error');
+ 
+let loading=false, selectedTicker=null, highlightIdx=-1, debounceTimer=null;
+ 
+const RECENT_KEY='sf_recent';
+function getRecent(){try{return JSON.parse(localStorage.getItem(RECENT_KEY))||[];}catch{return[];}}
+function saveRecent(ticker,name,exchange){
+  let r=getRecent().filter(x=>x.ticker!==ticker);
+  r.unshift({ticker,name,exchange});
+  localStorage.setItem(RECENT_KEY,JSON.stringify(r.slice(0,5)));
+}
+ 
+function highlightMatch(text,query){
+  const s=text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  if(!query)return s;
+  const i=s.toLowerCase().indexOf(query.toLowerCase());
+  if(i===-1)return s;
+  return s.slice(0,i)+'<mark>'+s.slice(i,i+query.length)+'</mark>'+s.slice(i+query.length);
+}
+ 
+function badge(exchange){
+  if(exchange==='NSE'||exchange==='BSE') return '<span class="badge badge-in">🇮🇳 NSE</span>';
+  return '<span class="badge badge-us">🇺🇸 US</span>';
+}
+ 
+function renderDropdown(items,query,isRecent=false){
+  highlightIdx=-1; dropdown.innerHTML='';
+  if(!items.length){dropdown.innerHTML='<div class="sug-empty">No matching stocks found</div>';dropdown.classList.add('open');return;}
+  if(isRecent){const l=document.createElement('div');l.className='sug-label';l.textContent='Recent searches';dropdown.appendChild(l);}
+  items.forEach((item,i)=>{
+    const row=document.createElement('div');
+    row.className='suggestion'; row.dataset.idx=i;
+    row.innerHTML=`<div class="sug-left"><div class="sug-name">${highlightMatch(item.name,query)}</div><div class="sug-sub">${badge(item.exchange)}</div></div><div class="sug-right"><div class="sug-ticker">${highlightMatch(item.ticker,query)}</div></div>`;
+    row.addEventListener('mousedown',e=>{e.preventDefault();selectSuggestion(item);});
+    dropdown.appendChild(row);
+  });
+  dropdown.classList.add('open');
+}
+ 
+function closeDropdown(){dropdown.classList.remove('open');dropdown.innerHTML='';highlightIdx=-1;}
+ 
+function selectSuggestion(item){selectedTicker=item.ticker;input.value=item.name;closeDropdown();hideError();}
+function selectQuick(ticker,name,exchange){selectedTicker=ticker;input.value=name;closeDropdown();send();}
+ 
+input.addEventListener('keydown',e=>{
+  const rows=dropdown.querySelectorAll('.suggestion');
+  if(e.key==='ArrowDown'){e.preventDefault();highlightIdx=Math.min(highlightIdx+1,rows.length-1);updateHighlight(rows);}
+  else if(e.key==='ArrowUp'){e.preventDefault();highlightIdx=Math.max(highlightIdx-1,0);updateHighlight(rows);}
+  else if(e.key==='Enter'){if(highlightIdx>=0&&rows[highlightIdx])rows[highlightIdx].dispatchEvent(new Event('mousedown'));else send();}
+  else if(e.key==='Escape')closeDropdown();
+});
+ 
+function updateHighlight(rows){
+  rows.forEach((r,i)=>r.classList.toggle('highlighted',i===highlightIdx));
+  if(rows[highlightIdx])rows[highlightIdx].scrollIntoView({block:'nearest'});
+}
+ 
+document.addEventListener('click',e=>{if(!document.getElementById('inputcol').contains(e.target))closeDropdown();});
+ 
+input.addEventListener('input',()=>{
+  selectedTicker=null; hideError();
+  const q=input.value.trim();
+  clearTimeout(debounceTimer);
+  if(!q){const r=getRecent();if(r.length>0)renderDropdown(r,'',true);else closeDropdown();spinner.classList.remove('active');return;}
+  spinner.classList.add('active');
+  debounceTimer=setTimeout(async()=>{
+    try{const res=await fetch(`/search?q=${encodeURIComponent(q)}`);renderDropdown(await res.json(),q);}
+    catch{closeDropdown();}
+    finally{spinner.classList.remove('active');}
+  },250);
+});
+ 
+input.addEventListener('focus',()=>{if(!input.value.trim()){const r=getRecent();if(r.length>0)renderDropdown(r,'',true);}});
+ 
+function showError(msg){errMsg.textContent=msg;errMsg.classList.add('visible');}
+function hideError(){errMsg.classList.remove('visible');}
+ 
+async function send(){
+  if(!selectedTicker){showError('Please select a stock from the suggestions.');return;}
+  if(loading)return;
+ 
+  const tickerToSend=selectedTicker;
+  const displayName=input.value.trim()||tickerToSend;
+ 
+  saveRecent(tickerToSend,displayName,'');
+  input.value=''; selectedTicker=null; closeDropdown(); hideError();
+  loading=true; btn.disabled=true;
+ 
+  addRow('Analyze '+displayName,true);
+  const aiBub=addRow('<div class="typing"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>',false);
+ 
+  let buffer='';
+  aiBub.innerHTML=`<span class="fetch-hint">Fetching data for ${tickerToSend}</span>`;
+ 
+  try{
+    const res=await fetch('/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ticker:tickerToSend})});
+    const reader=res.body.getReader(); const decoder=new TextDecoder();
+    let started=false, chartRendered=false;
+    while(true){
+      const{done,value}=await reader.read(); if(done)break;
+      const chunk=decoder.decode(value);
+      for(const line of chunk.split('\n')){
+        if(!line.startsWith('data: '))continue;
+        const data=line.slice(6).trim(); if(data==='[DONE]')break;
+
+        // Try to parse as JSON result object
+        let parsed=null;
+        try{ parsed=JSON.parse(data); }catch{}
+
+        if(parsed && typeof parsed==='object' && parsed.memo){
+          // Real result — reset buffer, render memo first, then chart
+          if(!started){ aiBub.innerHTML=''; buffer=''; started=true; }
+
+          buffer = parsed.memo;
+          aiBub.innerHTML = marked.parse(buffer);
+          injectVerdictCard(aiBub);
+
+          // Render chart once after memo is in DOM
+          if(!chartRendered && parsed.chart_data && parsed.chart_data.length>5){
+            chartRendered=true;
+            renderChart(aiBub, parsed);
+          } else if(chartRendered && aiBub._chartNode && !aiBub.contains(aiBub._chartNode)){
+            aiBub.insertBefore(aiBub._chartNode, aiBub.firstChild);
+          }
+
+        } else if(!started){
+          // Status message — show as fetch hint, don't add to buffer
+          let text=data;
+          try{ const p=JSON.parse(data); text=p.content||p.text||p.message||String(p); }catch{}
+          aiBub.innerHTML=`<span class="fetch-hint">${text.replace(/\*\*/g,'')}</span>`;
+        }
+
+        msgArea.scrollTo({ top: msgArea.scrollHeight, behavior: 'smooth' });
+      }
+    }
+  }catch(e){aiBub.textContent='Error: '+e.message;}
+  loading=false; btn.disabled=false;
+}
+ 
+// ─── Verdict card injector ────────────────────────────────────────────────────
+function injectVerdictCard(bubbleEl) {
+  // Find the VERDICT: line in the rendered HTML text
+  const verdictMatch = bubbleEl.innerHTML.match(/VERDICT:\s*(STRONG BUY|STRONG SELL|BUY|SELL|HOLD)/i);
+  if (!verdictMatch) return;
+
+  const verdict = verdictMatch[1].toUpperCase();
+  const cssClass = verdict.toLowerCase().replace(' ', '-');
+
+  const labels = {
+    'STRONG BUY':  'Strong Buy',
+    'BUY':         'Buy',
+    'HOLD':        'Hold',
+    'SELL':        'Sell',
+    'STRONG SELL': 'Strong Sell',
+  };
+
+  // Remove the VERDICT: line from the rendered content
+  bubbleEl.innerHTML = bubbleEl.innerHTML.replace(/(<p>)?VERDICT:.*?(<\/p>)?(\n|$)/gi, '');
+
+  // Build the card
+  const card = document.createElement('div');
+  card.className = `verdict-card ${cssClass}`;
+  card.innerHTML = `
+    <div>
+      <div class="verdict-label">Analyst Verdict</div>
+      <div class="verdict-text">${labels[verdict] || verdict}</div>
+    </div>
+  `;
+
+  // Insert after the chart node (if present) or at the top
+  const chartNode = bubbleEl._chartNode;
+  if (chartNode && bubbleEl.contains(chartNode)) {
+    chartNode.insertAdjacentElement('afterend', card);
+  } else {
+    bubbleEl.insertBefore(card, bubbleEl.firstChild);
+  }
+}
+
+// ─── Chart renderer ───────────────────────────────────────────────────────────
+function renderChart(bubbleEl, result) {
+  const isDark    = document.body.classList.contains('dark');
+  const isUp      = result.price_change == null || result.price_change >= 0;
+  const color     = isUp ? '#16a34a' : '#dc2626';
+  const changeTxt = result.price_change != null
+    ? (result.price_change >= 0 ? '+' : '') + result.price_change.toFixed(2) + '% (6M)'
+    : '';
+
+  // Build chart DOM node
+  const wrap = document.createElement('div');
+  wrap.className = 'chart-wrap';
+  wrap.innerHTML = `
+    <div class="chart-header">
+      <span class="chart-title">6-Month Price</span>
+      ${changeTxt ? `<span class="chart-change ${isUp?'up':'down'}">${changeTxt}</span>` : ''}
+    </div>
+    <div class="chart-body"></div>
+  `;
+
+  // Prepend chart before memo text and store live DOM reference
+  bubbleEl.insertBefore(wrap, bubbleEl.firstChild);
+  bubbleEl._chartNode = wrap;   // live node — survives memo re-renders
+
+  const container = wrap.querySelector('.chart-body');
+
+  setTimeout(() => {
+    const chart = LightweightCharts.createChart(container, {
+      width:  container.offsetWidth,
+      height: 320,
+      layout: {
+        background: { color: 'transparent' },
+        textColor:  isDark ? '#8a8a87' : '#6b6b68',
+        padding: { bottom: 8 },
+      },
+      grid: {
+        vertLines: { color: isDark ? '#2e2e2e' : '#e8e8e5' },
+        horzLines: { color: isDark ? '#2e2e2e' : '#e8e8e5' },
+      },
+      rightPriceScale: {
+        borderColor: isDark ? '#2e2e2e' : '#e8e8e5',
+        scaleMargins: { top: 0.1, bottom: 0.2 },
+      },
+      timeScale: {
+        borderColor:    isDark ? '#2e2e2e' : '#e8e8e5',
+        timeVisible:    true,
+        secondsVisible: false,
+        fixLeftEdge:    true,
+        fixRightEdge:   true,
+        barSpacing:     8,
+      },
+      localization: { dateFormat: 'MMM dd' },
+      crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+      handleScroll: true,
+      handleScale:  true,
+    });
+
+    const series = chart.addSeries(LightweightCharts.AreaSeries, {
+      lineColor:        color,
+      topColor:         color + '28',
+      bottomColor:      color + '00',
+      lineWidth:        2,
+      priceLineVisible: false,
+      lastValueVisible: true,
+    });
+
+    series.setData(result.chart_data);
+    chart.timeScale().fitContent();
+
+    // Keep chart width in sync with container on resize
+    new ResizeObserver(() => {
+      chart.applyOptions({ width: container.offsetWidth });
+    }).observe(container);
+  }, 200);
+}
+
+function addRow(content,isUser){
+  const welcome=document.getElementById('welcome');
+  if(welcome)welcome.remove();
+  const row=document.createElement('div'); row.className='msg-row'+(isUser?' user':'');
+  const inner=document.createElement('div'); inner.className='msg-inner';
+  const av=document.createElement('div'); av.className='avatar '+(isUser?'user':'ai');
+  if(isUser){
+    av.textContent='You';
+  } else {
+    av.innerHTML='<svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M2 10.5L5.5 6.5L8.5 9L12 3.5" stroke="white" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="3.5" r="1.3" fill="white"/></svg>';
+  }
+  const bub=document.createElement('div'); bub.className='bubble '+(isUser?'user':'ai');
+  if(isUser)bub.textContent=content; else bub.innerHTML=content;
+  inner.appendChild(av); inner.appendChild(bub); row.appendChild(inner);
+  msgArea.appendChild(row);
+  msgArea.scrollTo({ top: msgArea.scrollHeight, behavior: 'smooth' });
+  return bub;
+}
+</script>
+</body>
+</html>
